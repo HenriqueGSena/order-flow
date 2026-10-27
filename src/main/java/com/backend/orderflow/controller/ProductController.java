@@ -1,6 +1,7 @@
 package com.backend.orderflow.controller;
 
 import com.backend.orderflow.dto.request.ProductRequest;
+import com.backend.orderflow.dto.request.ProductStatusRequest;
 import com.backend.orderflow.dto.response.ProductResponse;
 import com.backend.orderflow.service.ProductService;
 import com.backend.orderflow.utils.ApiResponse.ApiResponses;
@@ -113,7 +114,27 @@ public class ProductController {
             return ApiResponses.error(exception.getMessage(), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
             return ApiResponses.error(
-                    "Error interno ao retornar a lista de produtos",
+                    "Error interno ao atualizar produto",
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @PatchMapping("/updateProductStatus/{id}")
+    public ResponseEntity<Response<ProductResponse>> updateProductStatus(@PathVariable UUID id, @Valid @RequestBody ProductStatusRequest statusRequest) {
+        try {
+            var updatedProductStatus = productService.updateProductStatus(id, statusRequest);
+
+            return ApiResponses.success(
+                    null,
+                    "Status do produto atualizado com sucesso",
+                    HttpStatus.OK
+            );
+        } catch (IllegalArgumentException exception) {
+            return ApiResponses.error(exception.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            return ApiResponses.error(
+                    "Error interno ao atualizar status do produto",
                     HttpStatus.INTERNAL_SERVER_ERROR
             );
         }

@@ -3,6 +3,7 @@ package com.backend.orderflow.service;
 import com.backend.orderflow.domain.Product;
 import com.backend.orderflow.domain.enuns.ProductStatus;
 import com.backend.orderflow.dto.request.ProductRequest;
+import com.backend.orderflow.dto.request.ProductStatusRequest;
 import com.backend.orderflow.dto.response.ProductResponse;
 import com.backend.orderflow.repository.ProductRepository;
 import jakarta.transaction.Transactional;
@@ -98,6 +99,17 @@ public class ProductService {
         var product = productRepository.save(updateProduct);
 
         return toResponse(product);
+    }
+
+    @Transactional
+    public ProductResponse updateProductStatus(UUID id, ProductStatusRequest statusRequest) {
+        var updateProductStatus = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
+
+        updateProductStatus.setStatus(statusRequest.status());
+        var updateProduct = productRepository.save(updateProductStatus);
+
+        return toResponse(updateProduct);
     }
 
     private Product toEntity(ProductRequest request) {
