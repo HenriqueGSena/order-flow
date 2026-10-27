@@ -59,6 +59,9 @@ public class ProductService {
     }
 
     public ProductResponse findProductBySkuByProduct(String sku, String name) {
+
+        existsProductBySkuOrName(sku, name);
+
         if (sku != null && !sku.isBlank()) {
             return productRepository.findBySku(sku)
                     .map(this::toResponse)
@@ -112,6 +115,18 @@ public class ProductService {
         return toResponse(updateProduct);
     }
 
+    @Transactional
+    public ProductResponse removeProduct(UUID id) {
+
+        validateRemoverProduct(id);
+
+        var removeProduct = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
+
+        productRepository.delete(removeProduct);
+        return toResponse(removeProduct);
+    }
+
     private Product toEntity(ProductRequest request) {
         return Product.builder()
                 .name(request.name())
@@ -162,6 +177,14 @@ public class ProductService {
 
     private void validUpdateProduct(String sku) {
         if (productRepository.existsBySku(sku)) throw new IllegalArgumentException("Produto ja atualizado");
+    }
+
+    private void validateRemoverProduct(UUID id) {
+        if (!productRepository.existsById(id)) throw new IllegalArgumentException("Produto ja removido da base de dados");
+    }
+
+    private void existsProductBySkuOrName(String sku, String name) {
+        if (productRepository.existsProductBySkuOrName(sku, name)) throw new IllegalArgumentException("Produto não encontrado");
     }
 }
 

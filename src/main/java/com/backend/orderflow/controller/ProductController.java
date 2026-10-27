@@ -140,4 +140,24 @@ public class ProductController {
         }
     }
 
+    @DeleteMapping("/removeProduct/{id}")
+    public ResponseEntity<Response<ProductResponse>> removedProduct(@PathVariable UUID id) {
+        try {
+            var removeProduct = productService.removeProduct(id);
+
+            return ApiResponses.success(
+                    null,
+                    "Produto removido com sucesso",
+                    HttpStatus.OK
+            );
+        } catch (IllegalArgumentException exception) {
+            return ApiResponses.error(exception.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            return ApiResponses.error(
+                    "Error interno ao remover produto",
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
 }
