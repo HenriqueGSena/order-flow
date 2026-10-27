@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -78,6 +79,27 @@ public class ProductService {
         return products.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
+    public ProductResponse updateProduct(UUID id, ProductRequest request) {
+
+        validUpdateProduct(request.sku());
+
+        var updateProduct = productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
+
+        var existsSkuByProduct = productRepository.existsBySku(request.sku());
+
+        if (existsSkuByProduct && !updateProduct.getSku().equals(request.sku())) throw new IllegalArgumentException("SKU ja cadastrado: " + request.sku());
+
+        updateProduct.setName(request.name());
+        updateProduct.setSku(request.sku());
+        updateProduct.setDescription(request.description());
+        updateProduct.setPrice(request.price());
+
+        var product = productRepository.save(updateProduct);
+
+        return toResponse(product);
+    }
+
     private Product toEntity(ProductRequest request) {
         return Product.builder()
                 .name(request.name())
@@ -102,11 +124,7 @@ public class ProductService {
     }
 
     private void existsProductSku(String sku) {
-        if (productRepository.existsBySku(sku)) {
-            throw new IllegalArgumentException(
-                    "SKU já cadastrado: " + sku
-            );
-        }
+        if (productRepository.existsBySku(sku)) throw new IllegalArgumentException("SKU já cadastrado: " + sku);
     }
 
     private void validateExistingSkus(List<String> skus) {
@@ -117,7 +135,6 @@ public class ProductService {
             var existingSkus = existingProducts.stream()
                     .map(Product::getSku)
                     .toList();
-
             throw new IllegalArgumentException("Os seguintes Skus já estão cadastrados: " + existingSkus);
         }
     }
@@ -127,12 +144,12 @@ public class ProductService {
         Set<String> skus = new HashSet<>();
 
         for (var request : requests) {
-            if (!skus.add(request.sku())) {
-                throw new IllegalArgumentException(
-                        "SKU duplicado na lista: " + request.sku()
-                );
-            }
+            if (!skus.add(request.sku())) throw new IllegalArgumentException("SKU duplicado na lista: " + request.sku());
         }
+    }
+
+    private void validUpdateProduct(String sku) {
+        if (productRepository.existsBySku(sku)) throw new IllegalArgumentException("Produto ja atualizado");
     }
 }
 

@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/product")
@@ -90,6 +91,26 @@ public class ProductController {
             );
         } catch (IllegalArgumentException exception) {
             return ApiResponses.error(exception.getMessage(), HttpStatus.CONFLICT);
+        } catch (Exception e) {
+            return ApiResponses.error(
+                    "Error interno ao retornar a lista de produtos",
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @PutMapping("/updateProduct/{id}")
+    public ResponseEntity<Response<ProductResponse>> updateProduct(@PathVariable UUID id, @Valid @RequestBody ProductRequest request) {
+        try {
+            var updatedProduct = productService.updateProduct(id, request);
+
+            return ApiResponses.success(
+                    null,
+                    "Produto atualizado com sucesso",
+                    HttpStatus.OK
+            );
+        } catch (IllegalArgumentException exception) {
+            return ApiResponses.error(exception.getMessage(), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
             return ApiResponses.error(
                     "Error interno ao retornar a lista de produtos",
