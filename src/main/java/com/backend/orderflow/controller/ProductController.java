@@ -8,10 +8,7 @@ import com.backend.orderflow.utils.ApiResponse.Response;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -59,6 +56,23 @@ public class ProductController {
         } catch (Exception e) {
             return ApiResponses.error(
                     "Error interno ao cadastrar um novo produto no sistema",
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @GetMapping("/searchProduct")
+    public ResponseEntity<Response<ProductResponse>> findProductBySku(@RequestParam(required = false) String sku, @RequestParam(required = false) String name) {
+        try {
+            var productSku = productService.findProductBySkuByProduct(sku, name);
+            return ApiResponses.success(
+                    productSku,
+                    "Produto encontrado com sucesso",
+                    HttpStatus.OK);
+
+        } catch (Exception e) {
+            return ApiResponses.error(
+                    "Error interno ao buscar o produto",
                     HttpStatus.INTERNAL_SERVER_ERROR
             );
         }

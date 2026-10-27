@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -14,4 +15,8 @@ public interface ProductRepository  extends JpaRepository<Product, UUID> {
     boolean existsBySku(String sku);
 
     List<Product> findAllBySkuIn(Collection<String> skus);
+
+    Optional<Product> findBySku(String sku);
+
+    Optional<Product> findProductByName(String name);
 }

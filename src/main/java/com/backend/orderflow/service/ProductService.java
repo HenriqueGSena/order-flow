@@ -55,6 +55,22 @@ public class ProductService {
                 .toList();
     }
 
+    public ProductResponse findProductBySkuByProduct(String sku, String name) {
+        if (sku != null && !sku.isBlank()) {
+            return productRepository.findBySku(sku)
+                    .map(this::toResponse)
+                    .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado com SKU informado: " + sku));
+        }
+
+        if (name != null && !name.isBlank()) {
+            return productRepository.findProductByName(name)
+                    .map(this::toResponse)
+                    .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado com o Nome informado: " + name));
+        }
+
+        throw new IllegalArgumentException("Informe o SKU ou NOME do produto");
+    }
+
     private Product toEntity(ProductRequest request) {
         return Product.builder()
                 .name(request.name())
