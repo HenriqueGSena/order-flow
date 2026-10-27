@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/product")
 public class ProductController {
@@ -34,10 +36,26 @@ public class ProductController {
                     HttpStatus.CREATED
             );
         } catch (IllegalArgumentException exception) {
+            return ApiResponses.error(exception.getMessage(), HttpStatus.CONFLICT);
+        } catch (Exception e) {
             return ApiResponses.error(
-                    exception.getMessage(),
-                    HttpStatus.CONFLICT
+                    "Error interno ao cadastrar um novo produto no sistema",
+                    HttpStatus.INTERNAL_SERVER_ERROR
             );
+        }
+    }
+
+    @PostMapping("/createProductList")
+    public ResponseEntity<Response<List<ProductResponse>>> createProductList(@RequestBody List<@Valid ProductRequest> requestList) {
+        try {
+            var productList = productService.createAllListProduct(requestList);
+            return ApiResponses.success(
+                    productList,
+                    "Lista de produto criado com sucesso",
+                    HttpStatus.CREATED
+            );
+        } catch (IllegalArgumentException exception) {
+            return ApiResponses.error(exception.getMessage(), HttpStatus.CONFLICT);
         } catch (Exception e) {
             return ApiResponses.error(
                     "Error interno ao cadastrar um novo produto no sistema",

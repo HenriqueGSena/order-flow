@@ -23,13 +23,36 @@ public class ProductService {
 
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
-
+        
         existsProductSku(request.sku());
 
         var product = toEntity(request);
         var savedProduct = productRepository.save(product);
 
         return toResponse(savedProduct);
+    }
+
+    @Transactional
+    public List<ProductResponse> createAllListProduct(List<ProductRequest> requests) {
+
+        if (requests == null || requests.isEmpty()) throw new IllegalArgumentException("A lista de produtos não pode ser vazia");
+
+        var skus = requests.stream()
+                .map(ProductRequest::sku)
+                .toList();
+
+        validateExistingSkus(skus);
+        validateDuplicateSkus(requests);
+
+        var products = requests.stream()
+                .map(this::toEntity)
+                .toList();
+
+        var saveListProducts = productRepository.saveAll(products);
+
+        return saveListProducts.stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     private Product toEntity(ProductRequest request) {
@@ -63,9 +86,21 @@ public class ProductService {
         }
     }
 
-    private void validateDuplicateSkus(
-            List<ProductRequest> requests
-    ) {
+    private void validateExistingSkus(List<String> skus) {
+
+        var existingProducts = productRepository.findAllBySkuIn(skus);
+
+        if (!existingProducts.isEmpty()) {
+            var existingSkus = existingProducts.stream()
+                    .map(Product::getSku)
+                    .toList();
+
+            throw new IllegalArgumentException("Os seguintes Skus já estão cadastrados: " + existingSkus);
+        }
+    }
+
+    private void validateDuplicateSkus(List<ProductRequest> requests) {
+
         Set<String> skus = new HashSet<>();
 
         for (var request : requests) {
