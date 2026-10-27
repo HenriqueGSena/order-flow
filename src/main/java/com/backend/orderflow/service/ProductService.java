@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductService {
@@ -69,6 +70,12 @@ public class ProductService {
         }
 
         throw new IllegalArgumentException("Informe o SKU ou NOME do produto");
+    }
+
+    public List<ProductResponse> getListProduct() {
+        List<Product> products = productRepository.findAll();
+
+        return products.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     private Product toEntity(ProductRequest request) {

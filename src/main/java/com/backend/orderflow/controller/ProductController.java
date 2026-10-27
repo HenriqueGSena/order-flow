@@ -78,4 +78,24 @@ public class ProductController {
         }
     }
 
+    @GetMapping("/listProduct")
+    public ResponseEntity<Response<List<ProductResponse>>> getListProduct() {
+        try {
+            var listProduct = productService.getListProduct();
+
+            return ApiResponses.success(
+                    listProduct,
+                    "Lista de Produtos retornado com sucesso",
+                    HttpStatus.OK
+            );
+        } catch (IllegalArgumentException exception) {
+            return ApiResponses.error(exception.getMessage(), HttpStatus.CONFLICT);
+        } catch (Exception e) {
+            return ApiResponses.error(
+                    "Error interno ao retornar a lista de produtos",
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
 }
