@@ -18,7 +18,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class OrderItem {
+public class OrderItems {
 
     @JdbcTypeCode(SqlTypes.CHAR)
     @Id
@@ -48,7 +48,7 @@ public class OrderItem {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    public OrderItem(Product product, Integer quantity) {
+    public OrderItems(Product product, Integer quantity) {
         if (product == null) throw new IllegalArgumentException("Produto obrigatório");
 
         if (quantity == null || quantity <= 0) throw new IllegalArgumentException("A quantidade deve ser maior que zero");
