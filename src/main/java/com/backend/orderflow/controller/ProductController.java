@@ -72,9 +72,15 @@ public class ProductController {
                     "Produto encontrado com sucesso",
                     HttpStatus.OK);
 
-        } catch (Exception e) {
+        } catch (IllegalArgumentException exception) {
             return ApiResponses.error(
-                    "Error interno ao buscar o produto",
+                    exception.getMessage(),
+                    HttpStatus.NOT_FOUND
+            );
+
+        } catch (Exception exception) {
+            return ApiResponses.error(
+                    "Erro interno ao buscar o produto",
                     HttpStatus.INTERNAL_SERVER_ERROR
             );
         }

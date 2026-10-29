@@ -60,8 +60,6 @@ public class ProductService {
 
     public ProductResponse findProductBySkuByProduct(String sku, String name) {
 
-        existsProductBySkuOrName(sku, name);
-
         if (sku != null && !sku.isBlank()) {
             return productRepository.findBySku(sku)
                     .map(this::toResponse)
@@ -180,11 +178,7 @@ public class ProductService {
     }
 
     private void validateRemoverProduct(UUID id) {
-        if (!productRepository.existsById(id)) throw new IllegalArgumentException("Produto ja removido da base de dados");
-    }
-
-    private void existsProductBySkuOrName(String sku, String name) {
-        if (productRepository.existsProductBySkuOrName(sku, name)) throw new IllegalArgumentException("Produto não encontrado");
+        if (!productRepository.existsById(id)) throw new IllegalArgumentException("Produto inexistente ou removido da base de dados");
     }
 }
 
