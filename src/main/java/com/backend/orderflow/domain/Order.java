@@ -46,4 +46,9 @@ public class Order {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    public void addItem(OrderItems orderItem) {
+        items.add(orderItem);
+        orderItem.setOrder(this);
+    }
 }
