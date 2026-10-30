@@ -8,10 +8,12 @@ import com.backend.orderflow.dto.response.OrdersResponse;
 import com.backend.orderflow.mapper.OrdersMapper;
 import com.backend.orderflow.repository.OrdersRepository;
 import com.backend.orderflow.repository.ProductRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.UUID;
 
 @Service
 public class OrdersService {
@@ -49,5 +51,15 @@ public class OrdersService {
         var orderFromDatabase = ordersRepository.findById(savedOrder.getId()).orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
 
         return OrdersMapper.toResponse(orderFromDatabase);
+    }
+
+    @Transactional(readOnly = true)
+    public OrdersResponse getOrderById(UUID ordersId) {
+
+        if (ordersId == null) throw new IllegalArgumentException("O ID do pedido é obrigatório");
+
+        return ordersRepository.findById(ordersId)
+                .map(OrdersMapper::toResponse)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não encontrado com o ID informado: " + ordersId));
     }
 }
