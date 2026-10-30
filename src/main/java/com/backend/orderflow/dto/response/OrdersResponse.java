@@ -13,8 +13,6 @@ public record OrdersResponse(
         LocalDateTime orderDate,
         OrderStatus orderStatus,
         List<OrderItemsResponse> items,
-        BigDecimal totalAmount,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        BigDecimal totalAmount
 ) {
 }

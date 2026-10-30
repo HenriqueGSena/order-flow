@@ -28,9 +28,7 @@ public final class OrdersMapper {
                 order.getOrderDate(),
                 order.getOrderStatus(),
                 items,
-                totalAmount,
-                order.getCreatedAt(),
-                order.getUpdatedAt()
+                totalAmount
         );
     }
 

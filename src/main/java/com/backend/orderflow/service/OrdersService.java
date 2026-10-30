@@ -5,6 +5,7 @@ import com.backend.orderflow.domain.OrderItems;
 import com.backend.orderflow.domain.enuns.ProductStatus;
 import com.backend.orderflow.dto.request.OrdersRequest;
 import com.backend.orderflow.dto.response.OrdersResponse;
+import com.backend.orderflow.mapper.OrdersDetailsMapper;
 import com.backend.orderflow.mapper.OrdersMapper;
 import com.backend.orderflow.repository.OrdersRepository;
 import com.backend.orderflow.repository.ProductRepository;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -61,5 +63,12 @@ public class OrdersService {
         return ordersRepository.findById(ordersId)
                 .map(OrdersMapper::toResponse)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não encontrado com o ID informado: " + ordersId));
+    }
+
+    public List<OrdersResponse> getListOrders() {
+
+        var listOrders = ordersRepository.findAllOrderDetails();
+
+        return OrdersDetailsMapper.toResponse(listOrders);
     }
 }

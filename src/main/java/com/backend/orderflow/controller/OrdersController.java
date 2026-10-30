@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -58,6 +59,27 @@ public class OrdersController {
         } catch (Exception e) {
             return ApiResponses.error(
                     "Error interno ao retornar o pedido",
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    @GetMapping("/getListOrders")
+    public ResponseEntity<Response<List<OrdersResponse>>> getListOrders() {
+
+        try {
+            var listOrders = ordersService.getListOrders();
+
+            return ApiResponses.success(
+                    listOrders,
+                    "Lista de pedidos retornados com sucesso",
+                    HttpStatus.CREATED
+            );
+        } catch (IllegalArgumentException exception) {
+            return ApiResponses.error(exception.getMessage(), HttpStatus.CONFLICT);
+        } catch (Exception e) {
+            return ApiResponses.error(
+                    "Error interno ao retornar a lista de pedidos",
                     HttpStatus.INTERNAL_SERVER_ERROR
             );
         }
