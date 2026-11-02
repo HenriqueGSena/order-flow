@@ -7,4 +7,5 @@
     <include file="db/changelog/changes/20261029105050-create-orders.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/20261029105653-create-order-items.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/20261029114000-add-columns-order-items.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/20261102164853-create-logs.xml" relativeToChangelogFile="false"/>
 </databaseChangeLog>
