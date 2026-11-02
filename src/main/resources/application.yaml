@@ -1,4 +1,8 @@
 spring:
+  banner:
+    location: banner/banner.txt
+  main:
+    banner-mode: console
   application:
     name: order-flow
   datasource:
