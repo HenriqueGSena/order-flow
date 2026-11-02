@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="
+            http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20261102164853-create-logs" author="sena">
+
+        <createTable tableName="applogs">
+
+            <column name="id" type="CHAR(36)">
+                <constraints
+                        primaryKey="true"
+                        nullable="false"
+                        primaryKeyName="pk_applogs"/>
+            </column>
+
+            <column name="operation" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="log_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="entity_type" type="VARCHAR(50)"/>
+
+            <column name="entity_id" type="VARCHAR(36)"/>
+
+            <column name="description" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="json_envio" type="JSON"/>
+
+            <column name="json_retorno" type="JSON"/>
+
+            <column name="error_message" type="TEXT"/>
+
+            <column name="created_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+
+        </createTable>
+
+    </changeSet>
+
+</databaseChangeLog>
