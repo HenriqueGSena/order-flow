@@ -26,6 +26,8 @@ public class ApplicationLogService {
         log.setEntityType(request.entityType());
         log.setEntityId(request.entityId());
         log.setDescription(request.description());
+        log.setJsonEnvio(request.jsonEnvio());
+        log.setJsonRetorno(request.jsonRetorno());
         log.setErrorMessage(request.errorMessage());
         log.setLogType(type);
 
