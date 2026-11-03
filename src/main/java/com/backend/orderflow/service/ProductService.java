@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class ProductService {
 
     private final ProductRepository productRepository;
@@ -32,73 +33,225 @@ public class ProductService {
         this.appLogger = appLogger;
     }
 
-    @Transactional
     public ProductResponse createProduct(ProductRequest request) {
-        
-        existsProductSku(request.sku());
 
-        var product = toEntity(request);
-        var savedProduct = productRepository.save(product);
+        if (existsProductSku(request.sku())) {
 
-        return toResponse(savedProduct);
+            var logRequest = new AppLoggerRequest(
+                    "CREATE_PRODUCT",
+                    "PRODUCT",
+                    null,
+                    "Falha ao criar produto: SKU já cadastrado",
+                    appLogger.serializeSafely(request),
+                    null,
+                    "SKU já cadastrado: " + request.sku()
+            );
+
+            appLogger.logError(logRequest);
+
+            throw new IllegalArgumentException(
+                    "SKU já cadastrado: " + request.sku()
+            );
+        } else {
+
+            var product = toEntity(request);
+            var savedProduct = productRepository.save(product);
+            var response = toResponse(savedProduct);
+
+            var logRequest = new AppLoggerRequest(
+                    "CREATE_PRODUCT",
+                    "PRODUCT",
+                    savedProduct.getId().toString(),
+                    "Produto criado com sucesso",
+                    appLogger.serializeSafely(request),
+                    appLogger.serializeSafely(response),
+                    null
+            );
+
+            applicationEventPublisher.publishEvent(
+                    new AppLoggerSuccessEvent(logRequest)
+            );
+
+            return response;
+        }
     }
 
-    @Transactional
     public List<ProductResponse> createAllListProduct(List<ProductRequest> requests) {
 
-        if (requests == null || requests.isEmpty()) throw new IllegalArgumentException("A lista de produtos não pode ser vazia");
+        if (requests == null || requests.isEmpty()) {
 
-        var skus = requests.stream()
-                .map(ProductRequest::sku)
-                .toList();
+            var logRequest = new AppLoggerRequest(
+                    "CREATE_ALL_PRODUCTS",
+                    "PRODUCT",
+                    null,
+                    "Falha ao criar lista de produtos",
+                    appLogger.serializeSafely(requests),
+                    null,
+                    "A lista de produtos não pode ser vazia"
+            );
 
-        validateExistingSkus(skus);
+            appLogger.logError(logRequest);
+            throw new IllegalArgumentException("A lista de produtos não pode ser vazia");
+        }
+
         validateDuplicateSkus(requests);
 
-        var products = requests.stream()
-                .map(this::toEntity)
-                .toList();
+        var skus = requests.stream().map(ProductRequest::sku).toList();
+        validateExistingSkus(skus, requests);
 
+        var products = requests.stream().map(this::toEntity).toList();
         var saveListProducts = productRepository.saveAll(products);
+        var response = saveListProducts.stream().map(this::toResponse).toList();
 
-        return saveListProducts.stream()
-                .map(this::toResponse)
-                .toList();
+        var logRequest = new AppLoggerRequest(
+                "CREATE_ALL_PRODUCTS",
+                "PRODUCT",
+                null,
+                "Criado lista de produtos",
+                appLogger.serializeSafely(requests),
+                appLogger.serializeSafely(response),
+                null
+        );
+
+        applicationEventPublisher.publishEvent(
+                new AppLoggerSuccessEvent(logRequest)
+        );
+
+        return response;
     }
 
     public ProductResponse findProductBySkuByProduct(String sku, String name) {
 
         if (sku != null && !sku.isBlank()) {
-            return productRepository.findBySku(sku)
-                    .map(this::toResponse)
-                    .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado com SKU informado: " + sku));
+            var product = productRepository.findBySku(sku);
+            if (product.isEmpty()) {
+                var errorMessage = "Produto não encontrado com SKU informado: " + sku;
+                var logRequest = new AppLoggerRequest(
+                        "FIND_PRODUCT",
+                        "PRODUCT",
+                        null,
+                        "Falha ao buscar produto por SKU",
+                        appLogger.serializeSafely(sku),
+                        null,
+                        errorMessage
+                );
+                appLogger.logError(logRequest);
+                throw new IllegalArgumentException(errorMessage);
+            }
+
+            var response = toResponse(product.get());
+            var logRequest = new AppLoggerRequest(
+                    "FIND_PRODUCT",
+                    "PRODUCT",
+                    product.get().getId().toString(),
+                    "Produto encontrado com sucesso",
+                    appLogger.serializeSafely(sku),
+                    appLogger.serializeSafely(response),
+                    null
+            );
+            applicationEventPublisher.publishEvent(new AppLoggerSuccessEvent(logRequest));
+            return response;
         }
 
         if (name != null && !name.isBlank()) {
-            return productRepository.findProductByName(name)
-                    .map(this::toResponse)
-                    .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado com o Nome informado: " + name));
+            var product = productRepository.findProductByName(name);
+            if (product.isEmpty()) {
+                var errorMessage = "Produto não encontrado com o Nome informado: " + name;
+                var logRequest = new AppLoggerRequest(
+                        "FIND_PRODUCT",
+                        "PRODUCT",
+                        null,
+                        "Falha ao buscar produto por Nome",
+                        appLogger.serializeSafely(name),
+                        null,
+                        errorMessage
+                );
+                appLogger.logError(logRequest);
+                throw new IllegalArgumentException(errorMessage);
+            }
+
+            var response = toResponse(product.get());
+            var logRequest = new AppLoggerRequest(
+                    "FIND_PRODUCT",
+                    "PRODUCT",
+                    product.get().getId().toString(),
+                    "Produto encontrado com sucesso",
+                    appLogger.serializeSafely(name),
+                    appLogger.serializeSafely(response),
+                    null
+            );
+            applicationEventPublisher.publishEvent(new AppLoggerSuccessEvent(logRequest));
+            return response;
         }
 
-        throw new IllegalArgumentException("Informe o SKU ou NOME do produto");
+        var errorMessage = "Informe o SKU ou NOME do produto";
+        var logRequest = new AppLoggerRequest(
+                "FIND_PRODUCT",
+                "PRODUCT",
+                null,
+                "Falha ao buscar produto",
+                null,
+                null,
+                errorMessage
+        );
+        appLogger.logError(logRequest);
+        throw new IllegalArgumentException(errorMessage);
     }
 
     public List<ProductResponse> getListProduct() {
         List<Product> products = productRepository.findAll();
+        var response = products.stream().map(this::toResponse).collect(Collectors.toList());
 
-        return products.stream().map(this::toResponse).collect(Collectors.toList());
+        var logRequest = new AppLoggerRequest(
+                "GET_LIST_PRODUCT",
+                "PRODUCT",
+                null,
+                "Lista de produtos retornado com sucesso",
+                null,
+                appLogger.serializeSafely(response),
+                null
+        );
+
+        applicationEventPublisher.publishEvent(new AppLoggerSuccessEvent(logRequest));
+
+        return response;
     }
 
     public ProductResponse updateProduct(UUID id, ProductRequest request) {
 
-        validUpdateProduct(request.sku());
+        var optionalProduct = productRepository.findById(id);
+        if (optionalProduct.isEmpty()) {
+            var errorMessage = "Produto não encontrado";
+            var logRequest = new AppLoggerRequest(
+                    "UPDATE_PRODUCT",
+                    "PRODUCT",
+                    id != null ? id.toString() : null,
+                    "Falha ao atualizar produto: Produto não encontrado",
+                    appLogger.serializeSafely(request),
+                    null,
+                    errorMessage
+            );
+            appLogger.logError(logRequest);
+            throw new IllegalArgumentException(errorMessage);
+        }
 
-        var updateProduct = productRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
-
+        var updateProduct = optionalProduct.get();
         var existsSkuByProduct = productRepository.existsBySku(request.sku());
 
-        if (existsSkuByProduct && !updateProduct.getSku().equals(request.sku())) throw new IllegalArgumentException("SKU ja cadastrado: " + request.sku());
+        if (existsSkuByProduct && !updateProduct.getSku().equals(request.sku())) {
+            var errorMessage = "SKU ja cadastrado: " + request.sku();
+            var logRequest = new AppLoggerRequest(
+                    "UPDATE_PRODUCT",
+                    "PRODUCT",
+                    id.toString(),
+                    "Falha ao atualizar produto: SKU já cadastrado",
+                    appLogger.serializeSafely(request),
+                    null,
+                    errorMessage
+            );
+            appLogger.logError(logRequest);
+            throw new IllegalArgumentException(errorMessage);
+        }
 
         updateProduct.setName(request.name());
         updateProduct.setSku(request.sku());
@@ -106,20 +259,49 @@ public class ProductService {
         updateProduct.setPrice(request.price());
 
         var product = productRepository.save(updateProduct);
+        var response = toResponse(product);
 
-        return toResponse(product);
+        var logRequest = new AppLoggerRequest(
+                "UPDATE_PRODUCT",
+                "PRODUCT",
+                id.toString(),
+                "Produto atualizado com sucesso",
+                appLogger.serializeSafely(request),
+                appLogger.serializeSafely(response),
+                null
+        );
+
+        applicationEventPublisher.publishEvent(new AppLoggerSuccessEvent(logRequest));
+
+        return response;
     }
 
-    @Transactional
     public ProductResponse updateProductStatus(UUID id, ProductStatusRequest statusRequest) {
 
-        var updateProductStatus = productRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
+        var optionalProduct = productRepository.findById(id);
+        if (optionalProduct.isEmpty()) {
+            var errorMessage = "Produto não encontrado";
+            var logRequest = new AppLoggerRequest(
+                    "UPDATE_PRODUCT_STATUS",
+                    "PRODUCT",
+                    id != null ? id.toString() : null,
+                    "Falha ao atualizar status do produto: Produto não encontrado",
+                    appLogger.serializeSafely(statusRequest),
+                    null,
+                    errorMessage
+            );
+            appLogger.logError(logRequest);
+            throw new IllegalArgumentException(errorMessage);
+        }
+
+        var updateProductStatus = optionalProduct.get();
         var previousStatus = updateProductStatus.getStatus();
 
         if (previousStatus != statusRequest.status()) {
 
             updateProductStatus.setStatus(statusRequest.status());
             var updateProduct = productRepository.save(updateProductStatus);
+            var response = toResponse(updateProduct);
 
             var logRequest = new AppLoggerRequest(
                     "UPDATE_PRODUCT_STATUS",
@@ -128,20 +310,13 @@ public class ProductService {
                     "Status atualizado de " + previousStatus
                             + " para " + statusRequest.status(),
                     appLogger.serializeSafely(statusRequest),
-                    appLogger.serializeSafely(toResponse(updateProduct)),
+                    appLogger.serializeSafely(response),
                     null
-
             );
-
-            var jsonEnvio = appLogger.serializeSafely(statusRequest);
-            var jsonRetorno = appLogger.serializeSafely(toResponse(updateProduct));
-
-            System.out.println("JSON ENVIO: " + jsonEnvio);
-            System.out.println("JSON RETORNO: " + jsonRetorno);
 
             applicationEventPublisher.publishEvent(new AppLoggerSuccessEvent(logRequest));
 
-            return toResponse(updateProduct);
+            return response;
         } else {
 
             var logRequest = new AppLoggerRequest(
@@ -159,16 +334,42 @@ public class ProductService {
         }
     }
 
-    @Transactional
     public ProductResponse removeProduct(UUID id) {
 
-        validateRemoverProduct(id);
+        var optionalProduct = productRepository.findById(id);
+        if (optionalProduct.isEmpty()) {
+            var errorMessage = "Produto inexistente ou removido da base de dados";
+            var logRequest = new AppLoggerRequest(
+                    "REMOVE_PRODUCT",
+                    "PRODUCT",
+                    id != null ? id.toString() : null,
+                    "Falha ao remover produto: Produto não encontrado",
+                    null,
+                    null,
+                    errorMessage
+            );
+            appLogger.logError(logRequest);
+            throw new IllegalArgumentException(errorMessage);
+        }
 
-        var removeProduct = productRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
+        var removeProduct = optionalProduct.get();
+        var response = toResponse(removeProduct);
 
         productRepository.delete(removeProduct);
-        return toResponse(removeProduct);
+
+        var logRequest = new AppLoggerRequest(
+                "REMOVE_PRODUCT",
+                "PRODUCT",
+                id.toString(),
+                "Produto removido com sucesso",
+                null,
+                appLogger.serializeSafely(response),
+                null
+        );
+
+        applicationEventPublisher.publishEvent(new AppLoggerSuccessEvent(logRequest));
+
+        return response;
     }
 
     private Product toEntity(ProductRequest request) {
@@ -194,11 +395,11 @@ public class ProductService {
         );
     }
 
-    private void existsProductSku(String sku) {
-        if (productRepository.existsBySku(sku)) throw new IllegalArgumentException("SKU já cadastrado: " + sku);
+    private boolean existsProductSku(String sku) {
+        return productRepository.existsBySku(sku);
     }
 
-    private void validateExistingSkus(List<String> skus) {
+    private void validateExistingSkus(List<String> skus, List<ProductRequest> requests) {
 
         var existingProducts = productRepository.findAllBySkuIn(skus);
 
@@ -206,7 +407,18 @@ public class ProductService {
             var existingSkus = existingProducts.stream()
                     .map(Product::getSku)
                     .toList();
-            throw new IllegalArgumentException("Os seguintes Skus já estão cadastrados: " + existingSkus);
+            var errorMessage = "Os seguintes Skus já estão cadastrados: " + existingSkus;
+            var logRequest = new AppLoggerRequest(
+                    "CREATE_ALL_PRODUCTS",
+                    "PRODUCT",
+                    null,
+                    "Falha ao criar lista de produtos: SKU já cadastrado",
+                    appLogger.serializeSafely(requests),
+                    null,
+                    errorMessage
+            );
+            appLogger.logError(logRequest);
+            throw new IllegalArgumentException(errorMessage);
         }
     }
 
@@ -215,16 +427,21 @@ public class ProductService {
         Set<String> skus = new HashSet<>();
 
         for (var request : requests) {
-            if (!skus.add(request.sku())) throw new IllegalArgumentException("SKU duplicado na lista: " + request.sku());
+            if (!skus.add(request.sku())) {
+                var errorMessage = "SKU duplicado na lista: " + request.sku();
+                var logRequest = new AppLoggerRequest(
+                        "CREATE_ALL_PRODUCTS",
+                        "PRODUCT",
+                        null,
+                        "Falha ao criar lista de produtos: SKU duplicado na lista",
+                        appLogger.serializeSafely(requests),
+                        null,
+                        errorMessage
+                );
+                appLogger.logError(logRequest);
+                throw new IllegalArgumentException(errorMessage);
+            }
         }
-    }
-
-    private void validUpdateProduct(String sku) {
-        if (productRepository.existsBySku(sku)) throw new IllegalArgumentException("Produto ja atualizado");
-    }
-
-    private void validateRemoverProduct(UUID id) {
-        if (!productRepository.existsById(id)) throw new IllegalArgumentException("Produto inexistente ou removido da base de dados");
     }
 }
 
