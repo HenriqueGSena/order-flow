@@ -2,11 +2,15 @@ package com.backend.orderflow.service;
 
 import com.backend.orderflow.domain.Product;
 import com.backend.orderflow.domain.enuns.ProductStatus;
+import com.backend.orderflow.dto.request.AppLoggerRequest;
+import com.backend.orderflow.dto.request.AppLoggerSuccessEvent;
 import com.backend.orderflow.dto.request.ProductRequest;
 import com.backend.orderflow.dto.request.ProductStatusRequest;
 import com.backend.orderflow.dto.response.ProductResponse;
 import com.backend.orderflow.repository.ProductRepository;
+import com.backend.orderflow.utils.Logger.AppLogger;
 import jakarta.transaction.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -19,9 +23,13 @@ import java.util.stream.Collectors;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
+    private final AppLogger appLogger;
 
-    public ProductService(ProductRepository productRepository) {
+    public ProductService(ProductRepository productRepository, ApplicationEventPublisher applicationEventPublisher, AppLogger appLogger) {
         this.productRepository = productRepository;
+        this.applicationEventPublisher = applicationEventPublisher;
+        this.appLogger = appLogger;
     }
 
     @Transactional
@@ -104,13 +112,51 @@ public class ProductService {
 
     @Transactional
     public ProductResponse updateProductStatus(UUID id, ProductStatusRequest statusRequest) {
-        var updateProductStatus = productRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
 
-        updateProductStatus.setStatus(statusRequest.status());
-        var updateProduct = productRepository.save(updateProductStatus);
+        var updateProductStatus = productRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Produto não encontrado"));
+        var previousStatus = updateProductStatus.getStatus();
 
-        return toResponse(updateProduct);
+        if (previousStatus != statusRequest.status()) {
+
+            updateProductStatus.setStatus(statusRequest.status());
+            var updateProduct = productRepository.save(updateProductStatus);
+
+            var logRequest = new AppLoggerRequest(
+                    "UPDATE_PRODUCT_STATUS",
+                    "PRODUCT",
+                    id.toString(),
+                    "Status atualizado de " + previousStatus
+                            + " para " + statusRequest.status(),
+                    appLogger.serializeSafely(statusRequest),
+                    appLogger.serializeSafely(toResponse(updateProduct)),
+                    null
+
+            );
+
+            var jsonEnvio = appLogger.serializeSafely(statusRequest);
+            var jsonRetorno = appLogger.serializeSafely(toResponse(updateProduct));
+
+            System.out.println("JSON ENVIO: " + jsonEnvio);
+            System.out.println("JSON RETORNO: " + jsonRetorno);
+
+            applicationEventPublisher.publishEvent(new AppLoggerSuccessEvent(logRequest));
+
+            return toResponse(updateProduct);
+        } else {
+
+            var logRequest = new AppLoggerRequest(
+                    "UPDATE_PRODUCT_STATUS",
+                    "PRODUCT",
+                    id.toString(),
+                    "O produto já possui o status solicitado",
+                    appLogger.serializeSafely(statusRequest),
+                    null,
+                    "O status informado é igual ao status atual"
+            );
+
+            appLogger.logError(logRequest);
+            throw new IllegalArgumentException("O produto já possui o status informado");
+        }
     }
 
     @Transactional
