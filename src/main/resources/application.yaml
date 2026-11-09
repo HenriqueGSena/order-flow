@@ -5,26 +5,13 @@ spring:
     banner-mode: console
   application:
     name: order-flow
-  datasource:
-    url: jdbc:mysql://localhost:3306/orderflow
-    username: orderflow
-    password: orderflow
-    driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     open-in-view: false
-    hibernate:
-      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
   liquibase:
     change-log: classpath:db/changelog/master.xml
-    enabled: true
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: orderflow
-    password: orderflowdev
 server:
   port: 8080
 springdoc:

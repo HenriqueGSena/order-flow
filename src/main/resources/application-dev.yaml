@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/orderflow
+    username: ${DB_USERNAME:orderflow}
+    password: ${DB_PASSWORD:orderflow}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  liquibase:
+    enabled: true
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: ${RABBITMQ_USERNAME:orderflow}
+    password: ${RABBITMQ_PASSWORD:orderflowdev}
