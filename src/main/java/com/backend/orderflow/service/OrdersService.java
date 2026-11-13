@@ -11,12 +11,15 @@ import com.backend.orderflow.dto.request.AppLoggerSuccessEvent;
 import com.backend.orderflow.dto.request.OrdersRequest;
 import com.backend.orderflow.dto.request.UpdateOrderItemRequest;
 import com.backend.orderflow.dto.request.UpdateOrdersStatusRequest;
+import com.backend.orderflow.dto.response.OrderStatusAcceptedResponse;
 import com.backend.orderflow.dto.response.OrdersResponse;
 import com.backend.orderflow.mapper.OrdersDetailsMapper;
 import com.backend.orderflow.mapper.OrdersMapper;
 import com.backend.orderflow.repository.OrdersRepository;
 import com.backend.orderflow.repository.ProductRepository;
 import com.backend.orderflow.utils.Logger.AppLogger;
+import com.backend.orderflow.utils.Rabbitmq.messaging.message.OrderStatusMessage;
+import com.backend.orderflow.utils.Rabbitmq.messaging.producer.OrderStatusProducer;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -33,12 +36,14 @@ public class OrdersService {
     private final ProductRepository productRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final AppLogger appLogger;
+    private final OrderStatusProducer orderStatusProducer;
 
-    public OrdersService(OrdersRepository ordersRepository, ProductRepository productRepository, ApplicationEventPublisher applicationEventPublisher, AppLogger appLogger) {
+    public OrdersService(OrdersRepository ordersRepository, ProductRepository productRepository, ApplicationEventPublisher applicationEventPublisher, AppLogger appLogger, OrderStatusProducer orderStatusProducer) {
         this.ordersRepository = ordersRepository;
         this.productRepository = productRepository;
         this.applicationEventPublisher = applicationEventPublisher;
         this.appLogger = appLogger;
+        this.orderStatusProducer = orderStatusProducer;
     }
 
     @Transactional
@@ -295,30 +300,52 @@ public class OrdersService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public OrderStatusAcceptedResponse updateOrderStatus(UUID ordersId, UpdateOrdersStatusRequest updateOrdersStatusRequest) {
+
+        var order = findOrderById(ordersId, "UPDATE_ORDER_STATUS", updateOrdersStatusRequest);
+
+        validateOrderStatusTransition(order, updateOrdersStatusRequest.orderStatus(), updateOrdersStatusRequest);
+
+        var message = OrderStatusMessage.create(ordersId, updateOrdersStatusRequest.orderStatus());
+
+        orderStatusProducer.publishStatusChange(message);
+
+        return new OrderStatusAcceptedResponse(
+                message.eventId(),
+                ordersId,
+                updateOrdersStatusRequest.orderStatus(),
+                "Solicitação de alteração de status aceita para processamento"
+        );
+    }
+
     @Transactional
-    public OrdersResponse updateOrderStatus(UUID ordersId, UpdateOrdersStatusRequest updateOrdersStatusRequest) {
+    public void processOrderStatus(OrderStatusMessage message) {
 
-        var ordersStatus = findOrderById(ordersId, "UPDATE_ORDER_STATUS", updateOrdersStatusRequest);
+        var order = findOrderById(message.orderId(), "PROCESS_ORDER_STATUS", message);
 
-        var previousStatus = ordersStatus.getOrderStatus();
-        validateOrderStatusTransition(ordersStatus, updateOrdersStatusRequest.orderStatus(), updateOrdersStatusRequest);
-        ordersStatus.setOrderStatus(updateOrdersStatusRequest.orderStatus());
+        var currentStatus = order.getOrderStatus();
+        if (currentStatus == message.newStatus()) {
+            return;
+        }
 
-        var response = OrdersMapper.toResponse(ordersStatus);
+        validateOrderStatusTransition(order, message.newStatus(), message);
+
+        order.setOrderStatus(message.newStatus());
+
+        var response = OrdersMapper.toResponse(order);
 
         var logRequest = new AppLoggerRequest(
                 "UPDATE_ORDER_STATUS",
                 "ORDER",
-                ordersId.toString(),
-                "Status do pedido atualizado de " + previousStatus + " para " + updateOrdersStatusRequest.orderStatus(),
-                appLogger.serializeSafely(updateOrdersStatusRequest),
+                order.getId().toString(),
+                "Status do pedido atualizado de " + currentStatus + " para " + message.newStatus(),
+                appLogger.serializeSafely(message),
                 appLogger.serializeSafely(response),
                 null
         );
 
         applicationEventPublisher.publishEvent(new AppLoggerSuccessEvent(logRequest));
-
-        return response;
     }
 
     private void validateOrdersStatus(Order order, String operation, Object requestPayload) {
