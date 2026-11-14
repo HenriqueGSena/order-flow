@@ -15,7 +15,10 @@ public class OrderStatusConsumer {
 
     private final OrdersService ordersService;
 
-    @RabbitListener(queues = RabbitMQConfig.ORDER_STATUS_QUEUE)
+    @RabbitListener(
+            queues = RabbitMQConfig.ORDER_STATUS_QUEUE,
+            containerFactory = "orderStatusRabbitListenerContainerFactory"
+    )
     public void consumeOrderStatus(OrderStatusMessage message) {
         log.info("Mensagem de atualização de status de pedido recebida: eventId={}, orderId={}, newStatus={}",
                 message.eventId(), message.orderId(), message.newStatus());
