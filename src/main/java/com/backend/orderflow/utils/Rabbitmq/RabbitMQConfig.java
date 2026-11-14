@@ -19,6 +19,12 @@ public class RabbitMQConfig {
 
     public static final String ORDER_STATUS_ROUTING_KEY = "order.status.updated";
 
+    public static final String ORDER_STATUS_DLX = "order.status.dlx";
+
+    public static final String ORDER_STATUS_DLQ = "order.status.dlq";
+
+    public static final String ORDER_STATUS_FAILED_ROUTING_KEY = "order.status.failed";
+
     @Bean
     public DirectExchange orderStatusExchange() {
         return new DirectExchange(ORDER_STATUS_EXCHANGE, true, false);
@@ -26,12 +32,43 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue orderStatusQueue() {
-        return QueueBuilder.durable(ORDER_STATUS_QUEUE).build();
+        return QueueBuilder
+                .durable(ORDER_STATUS_QUEUE)
+                .deadLetterExchange(ORDER_STATUS_DLX)
+                .deadLetterRoutingKey(ORDER_STATUS_FAILED_ROUTING_KEY)
+                .build();
     }
 
     @Bean
     public Binding orderStatusBinding() {
-        return BindingBuilder.bind(orderStatusQueue()).to(orderStatusExchange()).with(ORDER_STATUS_ROUTING_KEY);
+        return BindingBuilder
+                .bind(orderStatusQueue())
+                .to(orderStatusExchange())
+                .with(ORDER_STATUS_ROUTING_KEY);
+    }
+
+    @Bean
+    public DirectExchange orderStatusDlx() {
+        return new DirectExchange(
+                ORDER_STATUS_DLX,
+                true,
+                false
+        );
+    }
+
+    @Bean
+    public Queue orderStatusDlq() {
+        return QueueBuilder
+                .durable(ORDER_STATUS_DLQ)
+                .build();
+    }
+
+    @Bean
+    public Binding orderStatusDlqBinding() {
+        return BindingBuilder
+                .bind(orderStatusDlq())
+                .to(orderStatusDlx())
+                .with(ORDER_STATUS_FAILED_ROUTING_KEY);
     }
 
     @Bean
