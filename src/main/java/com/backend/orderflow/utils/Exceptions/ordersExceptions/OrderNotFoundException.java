@@ -1,4 +1,4 @@
-package com.backend.orderflow.utils.Exceptions.business;
+package com.backend.orderflow.utils.Exceptions.ordersExceptions;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;

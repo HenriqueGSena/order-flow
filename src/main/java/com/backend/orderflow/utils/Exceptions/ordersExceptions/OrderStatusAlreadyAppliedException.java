@@ -1,4 +1,4 @@
-package com.backend.orderflow.utils.Exceptions.business;
+package com.backend.orderflow.utils.Exceptions.ordersExceptions;
 
 import com.backend.orderflow.domain.enuns.OrderStatus;
 import org.springframework.http.HttpStatus;
