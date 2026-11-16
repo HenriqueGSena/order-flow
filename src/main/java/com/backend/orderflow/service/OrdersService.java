@@ -16,6 +16,7 @@ import com.backend.orderflow.dto.response.OrdersResponse;
 import com.backend.orderflow.mapper.OrdersDetailsMapper;
 import com.backend.orderflow.mapper.OrdersMapper;
 import com.backend.orderflow.repository.OrdersRepository;
+import com.backend.orderflow.repository.ProcessedEventRepository;
 import com.backend.orderflow.repository.ProductRepository;
 import com.backend.orderflow.utils.Exceptions.ordersExceptions.InvalidOrderStatusTransitionException;
 import com.backend.orderflow.utils.Exceptions.ordersExceptions.InvalidQuantityException;
@@ -29,6 +30,7 @@ import com.backend.orderflow.utils.Exceptions.ordersExceptions.ProductUnavailabl
 import com.backend.orderflow.utils.Logger.AppLogger;
 import com.backend.orderflow.utils.Rabbitmq.messaging.message.OrderStatusMessage;
 import com.backend.orderflow.utils.Rabbitmq.messaging.producer.OrderStatusProducer;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class OrdersService {
 
@@ -44,13 +47,15 @@ public class OrdersService {
     private final ApplicationEventPublisher applicationEventPublisher;
     private final AppLogger appLogger;
     private final OrderStatusProducer orderStatusProducer;
+    private final ProcessedEventRepository processedEventRepository;
 
-    public OrdersService(OrdersRepository ordersRepository, ProductRepository productRepository, ApplicationEventPublisher applicationEventPublisher, AppLogger appLogger, OrderStatusProducer orderStatusProducer) {
+    public OrdersService(OrdersRepository ordersRepository, ProductRepository productRepository, ApplicationEventPublisher applicationEventPublisher, AppLogger appLogger, OrderStatusProducer orderStatusProducer, ProcessedEventRepository processedEventRepository) {
         this.ordersRepository = ordersRepository;
         this.productRepository = productRepository;
         this.applicationEventPublisher = applicationEventPublisher;
         this.appLogger = appLogger;
         this.orderStatusProducer = orderStatusProducer;
+        this.processedEventRepository = processedEventRepository;
     }
 
     @Transactional
@@ -329,15 +334,21 @@ public class OrdersService {
     @Transactional
     public void processOrderStatus(OrderStatusMessage message) {
 
-        var order = findOrderById(message.orderId(), "PROCESS_ORDER_STATUS", message);
+        int inserted = processedEventRepository.registerIfAbsent(message.eventId().toString());
+        if (inserted == 0) {
+            log.info("Evento já processado. eventId={}", message.eventId());
+            return;
+        }
 
+        var order = findOrderById(message.orderId(), "PROCESS_ORDER_STATUS", message);
         var currentStatus = order.getOrderStatus();
+
         if (currentStatus == message.newStatus()) {
+            log.info("Pedido já possui o status solicitado. orderId={}, status={}", order.getId(), currentStatus);
             return;
         }
 
         validateOrderStatusTransition(order, message.newStatus(), message);
-
         order.setOrderStatus(message.newStatus());
 
         var response = OrdersMapper.toResponse(order);

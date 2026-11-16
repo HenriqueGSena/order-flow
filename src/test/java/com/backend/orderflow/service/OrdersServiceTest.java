@@ -7,12 +7,14 @@ import com.backend.orderflow.dto.request.UpdateOrdersStatusRequest;
 import com.backend.orderflow.dto.response.OrderStatusAcceptedResponse;
 import com.backend.orderflow.repository.OrdersRepository;
 import com.backend.orderflow.repository.ProductRepository;
+import com.backend.orderflow.repository.ProcessedEventRepository;
 import com.backend.orderflow.utils.Logger.AppLogger;
 import com.backend.orderflow.utils.Rabbitmq.messaging.message.OrderStatusMessage;
 import com.backend.orderflow.utils.Rabbitmq.messaging.producer.OrderStatusProducer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -30,6 +32,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,6 +52,9 @@ class OrdersServiceTest {
 
     @Mock
     private OrderStatusProducer orderStatusProducer;
+
+    @Mock
+    private ProcessedEventRepository processedEventRepository;
 
     @InjectMocks
     private OrdersService ordersService;
@@ -182,6 +188,11 @@ class OrdersServiceTest {
     @DisplayName("processOrderStatus() - Consumer Async Processing")
     class ProcessOrderStatusTests {
 
+        @BeforeEach
+        void allowNewEventsByDefault() {
+            when(processedEventRepository.registerIfAbsent(anyString())).thenReturn(1);
+        }
+
         @Test
         @DisplayName("Should process message, update order status via dirty checking, and publish success log event")
         void shouldProcessMessageAndUpdateOrderStatusSuccessfully() {
@@ -203,6 +214,7 @@ class OrdersServiceTest {
 
             // Assert
             assertThat(order.getOrderStatus()).isEqualTo(OrderStatus.PROCESSING);
+            verify(processedEventRepository).registerIfAbsent(message.eventId().toString());
             verify(applicationEventPublisher).publishEvent(any(AppLoggerSuccessEvent.class));
             verify(ordersRepository, never()).save(any());
         }

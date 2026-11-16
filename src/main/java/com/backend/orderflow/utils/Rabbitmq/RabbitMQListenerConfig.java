@@ -9,6 +9,7 @@ import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFacto
 import org.springframework.amqp.rabbit.config.StatelessRetryOperationsInterceptor;
 import org.springframework.amqp.rabbit.retry.RejectAndDontRequeueRecoverer;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.retry.RetryPolicy;
@@ -66,9 +67,11 @@ public class RabbitMQListenerConfig {
     public SimpleRabbitListenerContainerFactory orderStatusRabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
             RetryTemplate orderStatusRetryTemplate,
-            StatelessRetryOperationsInterceptor orderStatusRetryInterceptor) {
+            StatelessRetryOperationsInterceptor orderStatusRetryInterceptor,
+            MessageConverter jacksonMessageConverter) {
         var factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
+        factory.setMessageConverter(jacksonMessageConverter);
         factory.setRetryTemplate(orderStatusRetryTemplate);
         factory.setAdviceChain(orderStatusRetryInterceptor);
         factory.setAcknowledgeMode(AcknowledgeMode.AUTO);

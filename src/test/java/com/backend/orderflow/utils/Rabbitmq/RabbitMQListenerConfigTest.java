@@ -8,6 +8,7 @@ import com.backend.orderflow.utils.Exceptions.ordersExceptions.OrderStatusAlread
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.config.StatelessRetryOperationsInterceptor;
+import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.core.retry.RetryPolicy;
 import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.transaction.TransactionTimedOutException;
@@ -72,7 +73,8 @@ class RabbitMQListenerConfigTest {
                 config.orderStatusRabbitListenerContainerFactory(
                         null,
                         config.orderStatusRetryTemplate(config.orderStatusRetryPolicy()),
-                        interceptor);
+                        interceptor,
+                        new JacksonJsonMessageConverter());
 
         assertThat(factory.getAdviceChain()).containsExactly(interceptor);
         assertThat(factory).isNotNull();
