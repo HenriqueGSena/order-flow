@@ -11,21 +11,34 @@ import com.backend.orderflow.dto.request.AppLoggerSuccessEvent;
 import com.backend.orderflow.dto.request.OrdersRequest;
 import com.backend.orderflow.dto.request.UpdateOrderItemRequest;
 import com.backend.orderflow.dto.request.UpdateOrdersStatusRequest;
+import com.backend.orderflow.dto.response.OrderStatusAcceptedResponse;
 import com.backend.orderflow.dto.response.OrdersResponse;
 import com.backend.orderflow.mapper.OrdersDetailsMapper;
 import com.backend.orderflow.mapper.OrdersMapper;
 import com.backend.orderflow.repository.OrdersRepository;
+import com.backend.orderflow.repository.ProcessedEventRepository;
 import com.backend.orderflow.repository.ProductRepository;
+import com.backend.orderflow.utils.Exceptions.ordersExceptions.InvalidOrderStatusTransitionException;
+import com.backend.orderflow.utils.Exceptions.ordersExceptions.InvalidQuantityException;
+import com.backend.orderflow.utils.Exceptions.ordersExceptions.OrderItemNotFoundException;
+import com.backend.orderflow.utils.Exceptions.ordersExceptions.OrderNotFoundException;
+import com.backend.orderflow.utils.Exceptions.ordersExceptions.OrderNotPendingException;
+import com.backend.orderflow.utils.Exceptions.ordersExceptions.OrderStatusAlreadyAppliedException;
+import com.backend.orderflow.utils.Exceptions.ordersExceptions.OrderWithoutItemsException;
+import com.backend.orderflow.utils.Exceptions.ordersExceptions.ProductNotFoundException;
+import com.backend.orderflow.utils.Exceptions.ordersExceptions.ProductUnavailableException;
 import com.backend.orderflow.utils.Logger.AppLogger;
+import com.backend.orderflow.utils.Rabbitmq.messaging.message.OrderStatusMessage;
+import com.backend.orderflow.utils.Rabbitmq.messaging.producer.OrderStatusProducer;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class OrdersService {
 
@@ -33,12 +46,16 @@ public class OrdersService {
     private final ProductRepository productRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final AppLogger appLogger;
+    private final OrderStatusProducer orderStatusProducer;
+    private final ProcessedEventRepository processedEventRepository;
 
-    public OrdersService(OrdersRepository ordersRepository, ProductRepository productRepository, ApplicationEventPublisher applicationEventPublisher, AppLogger appLogger) {
+    public OrdersService(OrdersRepository ordersRepository, ProductRepository productRepository, ApplicationEventPublisher applicationEventPublisher, AppLogger appLogger, OrderStatusProducer orderStatusProducer, ProcessedEventRepository processedEventRepository) {
         this.ordersRepository = ordersRepository;
         this.productRepository = productRepository;
         this.applicationEventPublisher = applicationEventPublisher;
         this.appLogger = appLogger;
+        this.orderStatusProducer = orderStatusProducer;
+        this.processedEventRepository = processedEventRepository;
     }
 
     @Transactional
@@ -61,7 +78,7 @@ public class OrdersService {
                                 errorMessage
                         );
                         appLogger.logError(logRequest);
-                        return new ResponseStatusException(HttpStatus.NOT_FOUND, errorMessage);
+                        return new ProductNotFoundException(itemRequest.productId());
                     });
 
             if (product.getStatus() != ProductStatus.ENABLED) {
@@ -76,7 +93,7 @@ public class OrdersService {
                                 errorMessage
                         );
                 appLogger.logError(logRequest);
-                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, errorMessage);
+                throw new ProductUnavailableException(product.getName());
             }
 
             var orderItem = new OrderItems(product, itemRequest.quantity());
@@ -135,7 +152,7 @@ public class OrdersService {
                             errorMessage
                     );
                     appLogger.logError(logRequest);
-                    return new ResponseStatusException(HttpStatus.NOT_FOUND, errorMessage);
+                    return new OrderNotFoundException(ordersId);
                 });
 
         var response = OrdersMapper.toResponse(order);
@@ -196,7 +213,7 @@ public class OrdersService {
                     errorMessage
             );
             appLogger.logError(logRequest);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
+            throw new InvalidQuantityException();
         }
 
         var item = order.getItems().stream()
@@ -272,7 +289,7 @@ public class OrdersService {
                     errorMessage
             );
             appLogger.logError(logRequest);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, errorMessage);
+            throw new InvalidQuantityException();
         }
 
         var orderItem = new OrderItems(product, addOrderItemRequest.quantity());
@@ -295,30 +312,58 @@ public class OrdersService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public OrderStatusAcceptedResponse updateOrderStatus(UUID ordersId, UpdateOrdersStatusRequest updateOrdersStatusRequest) {
+
+        var order = findOrderById(ordersId, "UPDATE_ORDER_STATUS", updateOrdersStatusRequest);
+
+        validateOrderStatusTransition(order, updateOrdersStatusRequest.orderStatus(), updateOrdersStatusRequest);
+
+        var message = OrderStatusMessage.create(ordersId, updateOrdersStatusRequest.orderStatus());
+
+        orderStatusProducer.publishStatusChange(message);
+
+        return new OrderStatusAcceptedResponse(
+                message.eventId(),
+                ordersId,
+                updateOrdersStatusRequest.orderStatus(),
+                "Solicitação de alteração de status aceita para processamento"
+        );
+    }
+
     @Transactional
-    public OrdersResponse updateOrderStatus(UUID ordersId, UpdateOrdersStatusRequest updateOrdersStatusRequest) {
+    public void processOrderStatus(OrderStatusMessage message) {
 
-        var ordersStatus = findOrderById(ordersId, "UPDATE_ORDER_STATUS", updateOrdersStatusRequest);
+        int inserted = processedEventRepository.registerIfAbsent(message.eventId().toString());
+        if (inserted == 0) {
+            log.info("Evento já processado. eventId={}", message.eventId());
+            return;
+        }
 
-        var previousStatus = ordersStatus.getOrderStatus();
-        validateOrderStatusTransition(ordersStatus, updateOrdersStatusRequest.orderStatus(), updateOrdersStatusRequest);
-        ordersStatus.setOrderStatus(updateOrdersStatusRequest.orderStatus());
+        var order = findOrderById(message.orderId(), "PROCESS_ORDER_STATUS", message);
+        var currentStatus = order.getOrderStatus();
 
-        var response = OrdersMapper.toResponse(ordersStatus);
+        if (currentStatus == message.newStatus()) {
+            log.info("Pedido já possui o status solicitado. orderId={}, status={}", order.getId(), currentStatus);
+            return;
+        }
+
+        validateOrderStatusTransition(order, message.newStatus(), message);
+        order.setOrderStatus(message.newStatus());
+
+        var response = OrdersMapper.toResponse(order);
 
         var logRequest = new AppLoggerRequest(
                 "UPDATE_ORDER_STATUS",
                 "ORDER",
-                ordersId.toString(),
-                "Status do pedido atualizado de " + previousStatus + " para " + updateOrdersStatusRequest.orderStatus(),
-                appLogger.serializeSafely(updateOrdersStatusRequest),
+                order.getId().toString(),
+                "Status do pedido atualizado de " + currentStatus + " para " + message.newStatus(),
+                appLogger.serializeSafely(message),
                 appLogger.serializeSafely(response),
                 null
         );
 
         applicationEventPublisher.publishEvent(new AppLoggerSuccessEvent(logRequest));
-
-        return response;
     }
 
     private void validateOrdersStatus(Order order, String operation, Object requestPayload) {
@@ -334,7 +379,7 @@ public class OrdersService {
                     errorMessage
             );
             appLogger.logError(logRequest);
-            throw new ResponseStatusException(HttpStatus.CONFLICT, errorMessage);
+            throw new OrderNotPendingException();
         }
     }
 
@@ -353,7 +398,7 @@ public class OrdersService {
                     errorMessage
             );
             appLogger.logError(logRequest);
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, errorMessage);
+            throw new OrderItemNotFoundException();
         }
     }
 
@@ -374,7 +419,7 @@ public class OrdersService {
                     errorMessage
             );
             appLogger.logError(logRequest);
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, errorMessage);
+            throw new OrderWithoutItemsException();
         }
     }
 
@@ -392,7 +437,7 @@ public class OrdersService {
                             errorMessage
                     );
                     appLogger.logError(logRequest);
-                    return new ResponseStatusException(HttpStatus.NOT_FOUND, errorMessage);
+                    return new ProductNotFoundException(productId);
                 });
 
         if (product.getStatus() != ProductStatus.ENABLED) {
@@ -407,7 +452,7 @@ public class OrdersService {
                     errorMessage
             );
             appLogger.logError(logRequest);
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, errorMessage);
+            throw new ProductUnavailableException(product.getName());
         }
 
         return product;
@@ -426,7 +471,7 @@ public class OrdersService {
                     errorMessage
             );
             appLogger.logError(logRequest);
-            return new ResponseStatusException(HttpStatus.NOT_FOUND, errorMessage);
+            return new OrderNotFoundException(ordersId);
         });
     }
 
@@ -445,7 +490,7 @@ public class OrdersService {
                     errorMessage
             );
             appLogger.logError(logRequest);
-            throw new ResponseStatusException(HttpStatus.CONFLICT, errorMessage);
+            throw new OrderStatusAlreadyAppliedException(currentStatus);
         }
 
         boolean validTransition = switch (currentStatus) {
@@ -466,10 +511,7 @@ public class OrdersService {
                     errorMessage
             );
             appLogger.logError(logRequest);
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    errorMessage
-            );
+            throw new InvalidOrderStatusTransitionException(currentStatus, newStatus);
         }
     }
 }

@@ -4,6 +4,7 @@ import com.backend.orderflow.dto.request.AddOrderItemRequest;
 import com.backend.orderflow.dto.request.OrdersRequest;
 import com.backend.orderflow.dto.request.UpdateOrderItemRequest;
 import com.backend.orderflow.dto.request.UpdateOrdersStatusRequest;
+import com.backend.orderflow.dto.response.OrderStatusAcceptedResponse;
 import com.backend.orderflow.dto.response.OrdersResponse;
 import com.backend.orderflow.service.OrdersService;
 import com.backend.orderflow.utils.ApiResponse.ApiResponses;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -152,16 +154,18 @@ public class OrdersController {
     }
 
     @PatchMapping("/updateOrderStatus/{ordersId}/status")
-    public ResponseEntity<Response<OrdersResponse>> updateOrderStatus(@PathVariable UUID ordersId, UpdateOrdersStatusRequest updateOrdersStatusRequest) {
+    public ResponseEntity<Response<OrderStatusAcceptedResponse>> updateOrderStatus(@PathVariable UUID ordersId, @Valid @RequestBody UpdateOrdersStatusRequest updateOrdersStatusRequest) {
 
         try {
-            var updateStatusOrders = ordersService.updateOrderStatus(ordersId, updateOrdersStatusRequest);
+            var acceptedResponse = ordersService.updateOrderStatus(ordersId, updateOrdersStatusRequest);
 
             return ApiResponses.success(
-                    null,
-                    "Status do pedido atualizado com sucesso",
-                    HttpStatus.OK
+                    acceptedResponse,
+                    "Solicitação de atualização de status aceita para processamento",
+                    HttpStatus.ACCEPTED
             );
+        } catch (ResponseStatusException exception) {
+            return ApiResponses.error(exception.getReason(), HttpStatus.valueOf(exception.getStatusCode().value()));
         } catch (IllegalArgumentException exception) {
             return ApiResponses.error(exception.getMessage(), HttpStatus.CONFLICT);
         } catch (Exception e) {
