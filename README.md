@@ -335,11 +335,3 @@ src/
 │   └── docker/docker-compose.yml
 └── test/java/            # testes unitários e de contexto
 ```
-
-## Próximos passos
-
-- Criar uma imagem Docker da aplicação e incluí-la no Compose.
-- Automatizar build, testes e publicação da imagem em CI/CD.
-- Definir a infraestrutura de produção na AWS (por exemplo, ECS, RDS,
-  Amazon MQ, ECR, Secrets Manager e CloudWatch).
-- Avaliar autenticação/autorização e versionamento público da API.
